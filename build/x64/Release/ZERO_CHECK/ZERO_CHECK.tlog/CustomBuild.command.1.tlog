@@ -1,0 +1,10 @@
+^C:\USERS\MADDIE\DOCUMENTS\GITHUB\CUDA-NBODY\BUILD\CMAKEFILES\3B614F0E00E61DEDF3BE8805C0BE5A92\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/Maddie/Documents/GitHub/cuda-nbody -BC:/Users/Maddie/Documents/GitHub/cuda-nbody/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/Maddie/Documents/GitHub/cuda-nbody/build/NBodyCUDA.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
