@@ -1,169 +1,203 @@
 # CUDA N-Body Simulation
 
-A small CUDA-based gravitational n-body simulator written in C++ and CUDA C. It models a system of bodies moving under mutual gravitational attraction, using a straightforward all-pairs force calculation on the GPU.
+A GPU-accelerated n-body gravity simulation implemented in CUDA and C++. This project demonstrates how to parallelize the gravitational force calculation across many bodies and update their positions and velocities over time.
 
-This project is intentionally simple and educational: each body is updated by a CUDA kernel, and the simulation loops through many time steps to evolve the system.
+The current implementation uses a direct $O(N^2)$ force evaluation, where each body interacts with every other body. That makes it a good teaching example for understanding CUDA kernels, memory traffic, and GPU performance tuning.
 
-## Overview
+## Project Goals
 
-The program:
+This project is intended to:
 
-- Initializes a set of bodies with random positions, zero initial velocity, and random masses
-- Computes gravitational acceleration for each body using every other body in the system
-- Integrates velocity and position forward in time with a fixed time step
-- Prints the final positions of the first several bodies and exits
+- model gravitational attraction between many bodies
+- offload the expensive computation to the GPU
+- provide a simple, readable CUDA reference implementation
+- serve as a starting point for optimization experiments and larger physics simulations
 
-The core simulation is implemented in the CUDA kernels in [src/nbody.cu](src/nbody.cu), with shared declarations in [include/nbody.cuh](include/nbody.cuh). The entry point is [src/main.cu](src/main.cu).
+## Simulation Model
 
-## Physics
+Each body stores:
 
-The simulation uses a simplified gravity model:
+- position
+- velocity
+- mass
 
-- Gravitational constant: $G = 1.0$
-- Softening term: $\epsilon^2 = 10^{-4}$ to avoid singularities when bodies get very close
-- Acceleration for body $i$ from body $j$ is computed from:
+The force on a body is computed using Newtonian gravity with a softening term to avoid singularities when bodies become too close:
 
 $$
 \mathbf{a}_i = G \sum_{j \neq i} m_j \frac{\mathbf{r}_j - \mathbf{r}_i}{(\|\mathbf{r}_j - \mathbf{r}_i\|^2 + \epsilon^2)^{3/2}}
 $$
 
-The code updates velocity and then position with a basic explicit Euler integrator:
+where:
+
+- $G = 1.0$
+- $\epsilon^2 = 10^{-4}$
+- $m_j$ is the mass of body $j$
+- $\mathbf{r}_i$ and $\mathbf{r}_j$ are the positions of bodies $i$ and $j$
+
+The simulation integrates the acceleration with a simple explicit Euler update:
 
 $$
-\mathbf{v}_{t+1} = \mathbf{v}_t + \mathbf{a} \cdot \Delta t
+\mathbf{v}_{t+1} = \mathbf{v}_t + \mathbf{a} \Delta t
 $$
 
 $$
-\mathbf{r}_{t+1} = \mathbf{r}_t + \mathbf{v}_{t+1} \cdot \Delta t
+\mathbf{r}_{t+1} = \mathbf{r}_t + \mathbf{v}_{t+1} \Delta t
 $$
 
-This is a classic reference implementation for GPU acceleration, but it is not a production-grade astrophysical integrator.
+## Repository Structure
 
-## Project Structure
-
-- [CMakeLists.txt](CMakeLists.txt) — CMake project definition and CUDA build configuration
-- [include/nbody.cuh](include/nbody.cuh) — shared CUDA declarations and constants
-- [src/nbody.cu](src/nbody.cu) — CUDA kernels for acceleration calculation and integration
-- [src/main.cu](src/main.cu) — simulation setup, GPU memory management, and main loop
-- [build/](build/) — generated CMake build files for the current environment
+- [CMakeLists.txt](CMakeLists.txt) — CUDA project configuration and build settings
+- [include/nbody.cuh](include/nbody.cuh) — shared constants and kernel declarations
+- [src/nbody.cu](src/nbody.cu) — core CUDA kernels for acceleration and integration
+- [src/main.cu](src/main.cu) — CPU-side setup, memory allocation, kernel launches, and output
+- [build/](build/) — generated build artifacts from CMake
 
 ## Requirements
 
-To build and run this project you need:
+To build and run this project, you need:
 
-- An NVIDIA GPU with CUDA support
-- CUDA Toolkit installed and available on your system
+- NVIDIA GPU with CUDA support
+- CUDA Toolkit installed and available in your environment
 - CMake 3.18 or newer
-- A compatible C/C++ compiler
-- On Windows, Visual Studio 2022 with CUDA support is a common choice
+- A compatible C++ compiler
+- On Windows, Visual Studio 2022 with CUDA support is a common option
 
 ## Build Instructions
 
-### Windows with Visual Studio 2022
-
-From the project root:
+From the project root, configure and build the project:
 
 ```powershell
 cmake -S . -B build -G "Visual Studio 17 2022"
 cmake --build build --config Release
 ```
 
-This creates a build tree under [build/](build/) and compiles the `nbody` executable.
+This generates the Visual Studio solution and builds the `nbody` executable in the build tree.
 
-### Alternative local build layout
-
-If you already have a generated solution in the build directory, you can also open the Visual Studio solution in [build/NBodyCUDA.sln](build/NBodyCUDA.sln) and build from there.
+If you already have a generated solution, you can also open the project in [build/NBodyCUDA.sln](build/NBodyCUDA.sln) and build it from there.
 
 ## Running the Simulation
 
-After building, run the executable from the build output directory:
+Run the compiled binary from the appropriate output directory:
 
 ```powershell
 ./build/Release/nbody.exe
 ```
 
-or, if using the Debug configuration:
+or:
 
 ```powershell
 ./build/Debug/nbody.exe
 ```
 
-The program prints configuration information such as:
+The program prints setup information such as:
 
 - number of bodies
-- number of CUDA threads per block
+- threads per block
 - number of blocks
-- number of time steps
+- number of simulation steps
 
-Then it prints the first several final positions after the simulation finishes.
+It then prints the first several final positions after the simulation completes.
 
-## Current Simulation Parameters
+## Default Parameters
 
-The defaults in [src/main.cu](src/main.cu) are:
+The current defaults are defined in [src/main.cu](src/main.cu):
 
 - `N = 8192` bodies
-- `steps = 1000` time steps
+- `steps = 1000`
 - `dt = 0.001f`
-- `threads = 256` threads per block
+- `threads = 256` per block
 
-These settings are easy to adjust in the source if you want to explore different simulation sizes or time scales.
+These values are easy to modify for experimentation.
 
 ## Performance Notes
 
-This implementation is an $O(N^2)$ algorithm because each body interacts with every other body. That means the computational work grows quadratically with the number of particles.
+This is a direct-force n-body implementation, so the runtime grows quadratically with particle count:
+
+- time complexity: $O(N^2)$
+- memory traffic: high, because each body reads the positions of all other bodies
 
 This makes it ideal for:
 
-- learning GPU parallelism
-- benchmarking simple CUDA kernels
-- experimenting with force calculation and integration patterns
+- learning GPU parallel patterns
+- benchmarking CUDA kernels
+- testing force computation and simulation behavior on moderate body counts
 
-It is not the most scalable method for very large astrophysical systems, where more advanced algorithms such as Barnes-Hut or fast multipole methods are typically used.
+For very large systems, a more advanced approximation method such as Barnes-Hut or a tree-based algorithm would be more scalable.
+
+## Optimization and Tuning
+
+This project is a useful benchmark for experimenting with CUDA optimization strategies, including:
+
+- varying block size
+- reducing global-memory reads
+- using shared memory for tiled computations
+- reducing synchronization and launch overhead
+- improving numerical stability and step size choices
+
+The benchmark table below reflects a sample optimization pass and is useful for comparing different CUDA launch configurations.
+
+### Block Size Benchmark
+
+| Threads / Block | Blocks | GPU Time |
+|---:|---:|---:|
+| 32 | 256 | 503.284 ms |
+| 64 | 128 | 478.162 ms |
+| 128 | 64 | 479.112 ms |
+| 256 | 32 | 460.247 ms |
+| 521 | 16 | 552.347 ms |
+
+### Shared-Memory Improvement
+
+| Kernel Type | Threads / Block | GPU Time |
+|---|---:|---:|
+| Original global-memory kernel | 256 | 521.351 ms |
+| Shared-memory tiled kernel | 256 | 466.44 ms average |
+| Shared-memory tiled kernel | 256 | 460.247 ms best |
+
+The best configuration observed in this setup was 256 threads per block, and the shared-memory optimization reduced runtime by roughly 10.5% relative to the original implementation.
 
 ## Important Implementation Details
 
-- The simulation uses `cudaMalloc` and `cudaMemcpy` for GPU memory allocation and data transfer.
-- Each CUDA thread handles one body.
-- The acceleration kernel writes into an array of per-body acceleration vectors.
-- The integration kernel reads the computed acceleration and updates each body's velocity and position.
-- `cudaGetLastError()` and `cudaDeviceSynchronize()` are used to catch launch and execution issues.
+- GPU memory is allocated using `cudaMalloc`
+- body data is copied to the GPU with `cudaMemcpy`
+- each thread handles one body
+- the acceleration kernel computes the net force for that body
+- the integration kernel updates velocity and position
+- `cudaGetLastError()` and `cudaDeviceSynchronize()` are used to validate launches and execution
 
-## Troubleshooting
+## Common Troubleshooting
 
-### Build issues
-
-If CMake cannot find CUDA:
+### CUDA not found during build
 
 - confirm the NVIDIA CUDA Toolkit is installed
-- verify your compiler and Visual Studio installation include CUDA support
-- make sure the `nvcc` compiler is available in your environment
+- verify your compiler and Visual Studio installation includes CUDA support
+- ensure `nvcc` is available on the system path
 
 ### Runtime issues
 
-If the program crashes or exits early:
+- check that the system has a compatible NVIDIA GPU and driver
+- reduce the number of bodies if running on lower-end hardware
+- confirm the correct build configuration matches the installed CUDA environment
 
-- check that your machine has a compatible NVIDIA GPU
-- make sure the binary is running with the correct CUDA driver installed
-- try a smaller `N` value if you are testing on limited hardware
+### Stability concerns
 
-### Accuracy and stability
+The simulation is intentionally simple and may become numerically noisy if the time step is too large or the initial conditions are extreme. Reducing `dt` generally improves stability.
 
-The simulation is intentionally simple and may become unstable or numerically noisy with large step sizes or high body counts. Reducing `dt` or the number of bodies can improve stability.
+## Potential Extensions
 
-## Possible Extensions
+This project is a natural base for adding:
 
-This project is a good starting point for adding:
-
-- a CPU reference implementation for comparison
+- a CPU reference implementation for validation
 - a Barnes-Hut approximation for larger systems
-- time-based benchmarking and throughput reporting
-- improved initialization patterns and visualization output
-- integration of collision handling or soft-body dynamics
+- advanced integration schemes
+- collision handling
+- visualization or output plotting
+- benchmarking scripts for multiple GPU configurations
 
 ## License
 
-This project does not currently include a formal license file. If you plan to reuse or distribute it, add an explicit license before publishing or sharing beyond personal use.
+This repository does not currently include a formal license file. If you plan to distribute or publish it, add an explicit license before sharing it more broadly.
 
 ## Summary
 
-This repository is a compact CUDA learning project demonstrating how to parallelize a gravitational n-body simulation on the GPU. It is useful as a teaching example, a starting point for optimization experiments, and a baseline for more advanced numerical physics work.
+This repository is a compact CUDA learning project that demonstrates how to compute gravitational interactions in parallel on the GPU. It is useful as an educational sample, a benchmark for GPU optimization, and a starting point for more sophisticated n-body simulations.

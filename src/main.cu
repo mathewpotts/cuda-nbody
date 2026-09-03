@@ -35,7 +35,7 @@ void checkCuda(cudaError_t err, const char* message)
 // Main
 // ---------------------------------------------------------
 
-int main()
+int main(int argc, char** argv)
 {
     // Number of bodies
     const int N = 8192;
@@ -117,15 +117,34 @@ int main()
     // CUDA launch configuration
     // -----------------------------------------------------
 
-    const int threads = 256;
+    int threads = 64; // 32,64,128,256,512,1024
+    
+    if (argc > 2)
+    {
+        printf("Usage: %s [threads_per_block]\n", argv[0]);
+        return EXIT_FAILURE;
+    }
 
-    const int blocks =
-        (N + threads - 1) / threads;
+    if (argc == 2)
+    {
+        threads = std::atoi(argv[1]);
+    }
 
+    if (threads <= 0 || threads > 1024)
+    {
+        fprintf(stderr,
+                "Error: threads_per_block must be between 1 and 1024.\n");
+        return EXIT_FAILURE;
+    }
+
+    const int blocks = (N + threads - 1) / threads;
+
+    size_t sharedBytes = threads * sizeof(Body);
 
     printf("Bodies:  %d\n", N);
     printf("Threads: %d\n", threads);
     printf("Blocks:  %d\n", blocks);
+    printf("Shared memory/block: %zu bytes\n", sharedBytes);
     printf("Steps:   %d\n\n", steps);
 
 
@@ -133,9 +152,18 @@ int main()
     // Simulation
     // -----------------------------------------------------
 
+    cudaEvent_t start, stop;
+
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
+    cudaEventRecord(start);
+
+    size_t sharedBytes = threads * sizeof(Body);
+
     for (int step = 0; step < steps; ++step)
     {
-        computeAccelerations<<<blocks, threads>>>(
+        computeAccelerations<<<blocks, threads, sharedBytes>>>(
             d_bodies,
             d_accel,
             N);
@@ -169,6 +197,16 @@ int main()
         }
     }
 
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+
+    float milliseconds = 0.0f;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+
+    printf("GPU time: %.3f ms\n", milliseconds);
+
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
 
     // -----------------------------------------------------
     // Copy final state GPU -> CPU

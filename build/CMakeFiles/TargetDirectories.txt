@@ -1,3 +1,0 @@
-C:/Users/Maddie/Documents/GitHub/cuda-nbody/build/CMakeFiles/nbody.dir
-C:/Users/Maddie/Documents/GitHub/cuda-nbody/build/CMakeFiles/ALL_BUILD.dir
-C:/Users/Maddie/Documents/GitHub/cuda-nbody/build/CMakeFiles/ZERO_CHECK.dir
