@@ -33,7 +33,7 @@ Benchmark setup:
 | 256 | 32 | **460.247 ms** |
 | 521 | 16 | 552.347 ms |
 
-The best observed configuration after adding shared-memory tiling was **256 threads per block**, with a runtime of **460.247 ms**. :contentReference[oaicite:0]{index=0}
+The best observed configuration after adding shared-memory tiling was **256 threads per block**, with a runtime of **460.247 ms**.
 
 ### Shared-Memory Improvement
 
