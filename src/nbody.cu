@@ -23,48 +23,58 @@ void computeAccelerations(
     float3* accel,
     int N)
 {
+    extern __shared__ Body sharedBodies[];
+
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (i >= N)
         return;
 
-    // Keep the current body's position in registers.
     float3 pi = bodies[i].pos;
 
     float ax = 0.0f;
     float ay = 0.0f;
     float az = 0.0f;
 
-    for (int j = 0; j < N; ++j)
+    for (int tile = 0; tile < N; tile += blockDim.x)
     {
-        if (j == i)
-            continue;
+        int j = tile + threadIdx.x;
 
-        float dx = bodies[j].pos.x - pi.x;
-        float dy = bodies[j].pos.y - pi.y;
-        float dz = bodies[j].pos.z - pi.z;
+        if (j < N)
+        {
+            sharedBodies[threadIdx.x] = bodies[j];
+        }
 
-        float r2 =
-            dx * dx +
-            dy * dy +
-            dz * dz +
-            EPS2;
+        __syncthreads();
 
-        float invR = rsqrtf(r2);
-        float invR3 = invR * invR * invR;
+        int tileSize = min(blockDim.x, N - tile);
 
-        float s =
-            G * bodies[j].mass * invR3;
+        for (int k = 0; k < tileSize; ++k)
+        {
+            int globalJ = tile + k;
 
-        ax += dx * s;
-        ay += dy * s;
-        az += dz * s;
+            if (globalJ == i)
+                continue;
+
+            float dx = sharedBodies[k].pos.x - pi.x;
+            float dy = sharedBodies[k].pos.y - pi.y;
+            float dz = sharedBodies[k].pos.z - pi.z;
+
+            float r2 = dx * dx + dy * dy + dz * dz + EPS2;
+            float invR = rsqrtf(r2);
+            float invR3 = invR * invR * invR;
+
+            float s = G * sharedBodies[k].mass * invR3;
+
+            ax += dx * s;
+            ay += dy * s;
+            az += dz * s;
+        }
+
+        __syncthreads();
     }
 
-    accel[i] = make_float3(
-        ax,
-        ay,
-        az);
+    accel[i] = make_float3(ax, ay, az);
 }
 
 

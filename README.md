@@ -15,6 +15,36 @@ The program:
 
 The core simulation is implemented in the CUDA kernels in [src/nbody.cu](src/nbody.cu), with shared declarations in [include/nbody.cuh](include/nbody.cuh). The entry point is [src/main.cu](src/main.cu).
 
+## Performance Optimization 
+
+Benchmark setup:
+
+| Bodies | Steps | GPU Architecture | CUDA | Optimization |
+|---:|---:|---|---|---|
+| 8192 | 1000 | sm_75 | CUDA 13.3 | `-O3` |
+
+### Block Size Benchmark
+
+| Threads / Block | Blocks | GPU Time |
+|---:|---:|---:|
+| 32 | 256 | 503.284 ms |
+| 64 | 128 | 478.162 ms |
+| 128 | 64 | 479.112 ms |
+| 256 | 32 | **460.247 ms** |
+| 521 | 16 | 552.347 ms |
+
+The best observed configuration after adding shared-memory tiling was **256 threads per block**, with a runtime of **460.247 ms**. :contentReference[oaicite:0]{index=0}
+
+### Shared-Memory Improvement
+
+| Kernel | Threads / Block | GPU Time |
+|---|---:|---:|
+| Original global-memory kernel | 256 | 521.351 ms |
+| Shared-memory tiled kernel | 256 | 466.44 ms average |
+| Shared-memory tiled kernel | 256 | **460.247 ms best** |
+
+At the same 256-thread block size, shared-memory tiling reduced average runtime from **521.351 ms to 466.44 ms**, corresponding to approximately **1.12× speedup** and a **10.5% runtime reduction**.
+
 ## Physics
 
 The simulation uses a simplified gravity model:
