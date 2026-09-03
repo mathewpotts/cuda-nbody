@@ -1,2 +1,4 @@
 # Ignore files
 build/*
+vcpkg_installed/*
+vcpkg.json
