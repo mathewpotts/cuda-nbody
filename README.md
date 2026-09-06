@@ -61,13 +61,39 @@ To build and run this project, you need:
 - CMake 3.18 or newer
 - A compatible C++ compiler
 - On Windows, Visual Studio 2022 with CUDA support is a common option
+- OpenGL, GLFW, and GLAD development libraries available to CMake
+
+This project uses CMake's `find_package` calls for `glfw3` and `glad`, so the libraries must be installed and discoverable in your environment.
+
+## Dependency Setup (Windows with vcpkg)
+
+A reliable setup on Windows is to install the required libraries with vcpkg and then configure CMake using the vcpkg toolchain file.
+
+```powershell
+cd C:\Users\<you>\Documents\GitHub
+git clone https://github.com/microsoft/vcpkg.git
+cd vcpkg
+.\bootstrap-vcpkg.bat
+.\vcpkg install glfw3 glad --triplet x64-windows
+```
+
+Then configure the project with the toolchain:
+
+```powershell
+cd C:\Users\<you>\Documents\GitHub\cuda-nbody
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 \
+  -DCMAKE_TOOLCHAIN_FILE="C:/Users/<you>/Documents/GitHub/vcpkg/scripts/buildsystems/vcpkg.cmake" \
+  -DVCPKG_TARGET_TRIPLET=x64-windows
+```
 
 ## Build Instructions
 
 From the project root, configure and build the project:
 
 ```powershell
-cmake -S . -B build -G "Visual Studio 17 2022"
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 \
+  -DCMAKE_TOOLCHAIN_FILE="C:/Users/<you>/Documents/GitHub/vcpkg/scripts/buildsystems/vcpkg.cmake" \
+  -DVCPKG_TARGET_TRIPLET=x64-windows
 cmake --build build --config Release
 ```
 
@@ -172,6 +198,19 @@ The best configuration observed in this setup was 256 threads per block, and the
 - confirm the NVIDIA CUDA Toolkit is installed
 - verify your compiler and Visual Studio installation includes CUDA support
 - ensure `nvcc` is available on the system path
+
+### CMake cannot find GLFW / GLAD
+
+- install the libraries with vcpkg as shown above
+- ensure `CMAKE_TOOLCHAIN_FILE` points to the vcpkg toolchain file
+- clear stale build files if you previously configured with a different generator or platform
+
+```powershell
+Remove-Item .\build -Recurse -Force
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 \
+  -DCMAKE_TOOLCHAIN_FILE="C:/Users/<you>/Documents/GitHub/vcpkg/scripts/buildsystems/vcpkg.cmake" \
+  -DVCPKG_TARGET_TRIPLET=x64-windows
+```
 
 ### Runtime issues
 
