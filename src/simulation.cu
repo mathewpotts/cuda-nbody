@@ -3,31 +3,88 @@
 #include <cstdio>
 #include <cstdlib>
 #include <random>
-#include <vector>
 
-void checkCuda(cudaError_t err, const char* message)
-{
-    if (err != cudaSuccess)
-    {
-        fprintf(stderr, "CUDA Error: %s: %s\n", message, cudaGetErrorString(err));
-        exit(EXIT_FAILURE);
+void checkCuda(cudaError_t result, const char* message) {
+    if (result == cudaSuccess) {
+        return;
+    }
+
+    std::fprintf(stderr, "CUDA error: %s: %s\n",
+                 message, cudaGetErrorString(result));
+    std::exit(EXIT_FAILURE);
+}
+
+void initializeBodies(std::vector<Body>& bodies) {
+    std::mt19937 rng(42);
+
+    std::uniform_real_distribution<float> positionDist(
+        -INITIAL_RADIUS, INITIAL_RADIUS
+    );
+
+    std::uniform_real_distribution<float> massDist(
+        0.5f * BASE_MASS, 1.5f * BASE_MASS
+    );
+
+    for (Body& body : bodies) {
+        float x;
+        float y;
+        float z;
+
+        do {
+            x = positionDist(rng);
+            y = positionDist(rng);
+            z = positionDist(rng);
+        } while (x * x + y * y + z * z >
+                 INITIAL_RADIUS * INITIAL_RADIUS);
+
+        body.pos = make_float3(x, y, z);
+        body.vel = make_float3(0.0f, 0.0f, 0.0f);
+        body.mass = massDist(rng);
     }
 }
 
-void initializeBodies(std::vector<Body>& bodies)
-{
-    std::mt19937 rng(42);
-    std::uniform_real_distribution<float> posDist(-1.0f, 1.0f);
-    std::uniform_real_distribution<float> massDist(0.5f, 1.5f);
+Diagnostics calculateDiagnostics(
+    const Body* d_bodies,
+    double* d_accumulator,
+    int blocks,
+    int threads,
+    int N
+) {
+    constexpr int NUM_VALUES = 9;
 
-    for (size_t i = 0; i < bodies.size(); ++i)
-    {
-        bodies[i].pos = make_float3(
-            posDist(rng),
-            posDist(rng),
-            posDist(rng));
+    checkCuda(
+        cudaMemset(d_accumulator, 0, NUM_VALUES * sizeof(double)),
+        "cudaMemset diagnostics"
+    );
 
-        bodies[i].vel = make_float3(0.0f, 0.0f, 0.0f);
-        bodies[i].mass = massDist(rng);
+    accumulateDiagnostics<<<blocks, threads>>>(d_bodies, d_accumulator, N);
+    checkCuda(cudaGetLastError(), "accumulateDiagnostics launch");
+
+    double values[NUM_VALUES]{};
+
+    checkCuda(
+        cudaMemcpy(values, d_accumulator, NUM_VALUES * sizeof(double),
+                   cudaMemcpyDeviceToHost),
+        "diagnostics device-to-host copy"
+    );
+
+    Diagnostics d;
+
+    d.kineticEnergy = values[0];
+    d.potentialEnergy = values[1];
+    d.totalEnergy = values[0] + values[1];
+
+    d.momentumX = values[2];
+    d.momentumY = values[3];
+    d.momentumZ = values[4];
+
+    d.totalMass = values[8];
+
+    if (d.totalMass != 0.0) {
+        d.centerOfMassX = values[5] / d.totalMass;
+        d.centerOfMassY = values[6] / d.totalMass;
+        d.centerOfMassZ = values[7] / d.totalMass;
     }
+
+    return d;
 }

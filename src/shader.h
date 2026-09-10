@@ -1,9 +1,6 @@
 #pragma once
 
-#include <glad/glad.h>
-
-struct ShaderProgram
-{
+struct ShaderProgram {
     unsigned int id = 0;
     int yawLocation = -1;
     int pitchLocation = -1;
@@ -12,4 +9,4 @@ struct ShaderProgram
 };
 
 ShaderProgram createShaderProgram();
-void destroyShaderProgram(ShaderProgram program);
+void destroyShaderProgram(const ShaderProgram& program);
